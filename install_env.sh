@@ -6,16 +6,16 @@
 # echo "export PATH=/root/anaconda3/bin:$PATH" >> ~/.bashrc
 # source ~/.bashrc
 # conda init
-conda create -n reasoners python=3.10 -y
+# conda create -n reasoners python=3.10 -y
 # source ~/.bashrc
 # echo "export PATH=/root/anaconda3/bin:$PATH" >> ~/.bashrc
 # echo "conda activate reasoners" >> ~/.bashrc
-conda activate reasoners
+# conda activate reasoners
 # pip install "huggingface_hub[cli]" nvitop
-pip install exllamav2 torch scikit-build fschat pddl matplotlib openai protobuf accelerate sentencepiece torch requests anthropic psutil numpy transformers shortuuid accelerate optimum
+pip install torch scikit-build fschat pddl matplotlib openai protobuf accelerate sentencepiece torch requests anthropic psutil numpy transformers shortuuid accelerate optimum
 # conda install -c anaconda scipy==1.9.1 conda-forge gcc=12.1.0 conda-forge libgcc=5.2.0 -y
-git clone https://github.com/PanQiWei/AutoGPTQ.git && cd AutoGPTQ && MAX_JOBS=40 pip install -vvv --no-build-isolation -e .
-git clone https://github.com/Dao-AILab/flash-attention.git && cd flash-attention && MAX_JOBS=40 pip install -e . --no-build-isolation
+# git clone https://github.com/PanQiWei/AutoGPTQ.git && cd AutoGPTQ && MAX_JOBS=40 pip install -vvv --no-build-isolation -e .
+# git clone https://github.com/Dao-AILab/flash-attention.git && cd flash-attention && MAX_JOBS=40 pip install -e . --no-build-isolation
 # wget https://gpucloud-static-public-prod.gpushare.com/installation/oss/oss_linux_x86 && mv oss_linux_x86 oss && chmod +x ./oss
 
 # ./oss cp oss://reasoners_0916.tar.gz ./ && tar -xf reasoners_0916.tar.gz && cd reasoners && pip install -e .
