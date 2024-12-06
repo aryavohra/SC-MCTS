@@ -268,19 +268,137 @@ class LlamaCppModel(LanguageModel):
 
         For now, we just return a dummy reward.
         """
-        # Placeholder: Just return a dictionary with some dummy values.
-        return {
+        # We assume self.draft_llm is initialized if needed.
+        # If no draft model is provided, `self.draft_llm` might be None.
+        # Similarly, self.critic_llm if critic=True.
+        # If these models are not available, you need to handle that logic.
+
+        if len(full_contents) != 1:
+            raise ValueError("This reward function currently only supports a single content string.")
+
+        full_content = full_contents[0]
+        continue_contents = full_content[len(prefix):]
+
+        # Tokenize prefix and full contents
+        prefix_ids = self._tokenize(prefix, add_bos=True, add_eos=False)
+        prefix_length = (prefix_ids[0] != self.llm.token_eos()).sum().item()
+
+        full_contents_ids = self._tokenize(full_contents, add_bos=True, add_eos=False)
+        continue_ids = full_contents_ids[0, prefix_length:]
+
+        # Evaluate main model logits
+        seq_tokens = full_contents_ids[0]
+        valid_len = (seq_tokens != self.llm.token_eos()).sum().item()
+        seq_tokens_list = seq_tokens[:valid_len].tolist()
+
+        eval_res_main = self.llm.eval(tokens=seq_tokens_list, stop=None)
+        # eval_res_main["logits"] is shape [T, vocab_size]
+        # Convert to torch tensor: [1, T, V]
+        main_logits = torch.from_numpy(np.array(eval_res_main["logits"], dtype=np.float32)).unsqueeze(0)
+
+        # Evaluate draft model logits if available
+        if self.draft_llm is not None:
+            eval_res_draft = self.draft_llm.eval(tokens=seq_tokens_list, stop=None)
+            draft_logits = torch.from_numpy(np.array(eval_res_draft["logits"], dtype=np.float32)).unsqueeze(0)
+        else:
+            draft_logits = main_logits.clone()  # If no draft model, just copy main (or handle differently)
+
+        # Now slice the logits to focus on the continuation part:
+        # The original code: target_logits = full_content_logits[:, prefix_length - 1:-1, :]
+        # Here T is the total tokens length. For indexing:
+        # main_logits has shape [1, T, V]. The token at index (prefix_length - 1) predicts the token at prefix_length.
+        # The continuation part starts at prefix_length. So we slice [prefix_length-1 : -1].
+        target_logits = main_logits[:, prefix_length - 1:-1, :]
+        student_logits = draft_logits[:, prefix_length - 1:-1, :]
+
+        # Compute distributions
+        softmax_target = F.softmax(target_logits, dim=-1)
+        softmax_draft = F.softmax(student_logits, dim=-1)
+
+        log_softmax_target = F.log_softmax(target_logits, dim=-1)
+        log_softmax_draft = F.log_softmax(student_logits, dim=-1)
+
+        # Clamp values to avoid numerical issues
+        log_softmax_target_clamp = torch.clamp(log_softmax_target, min=1e-5, max=1)
+        log_softmax_draft_clamp = torch.clamp(log_softmax_draft, min=1e-5, max=1)
+
+        M = 0.5 * (softmax_target + softmax_draft)
+
+        kl_div_batchmean = F.kl_div(log_softmax_target_clamp, log_softmax_draft_clamp, reduction='batchmean').item()
+
+        kl_div_target_M_batchmean = F.kl_div(log_softmax_target, M, reduction='batchmean')
+        kl_div_target_M_clamp_batchmean = F.kl_div(log_softmax_target_clamp, M, reduction='batchmean')
+
+        kl_div_draft_M_batchmean = F.kl_div(log_softmax_draft, M, reduction='batchmean')
+        kl_div_draft_M_clamp_batchmean = F.kl_div(log_softmax_draft_clamp, M, reduction='batchmean')
+
+        js_div_clamp_batchmean = 0.5 * (kl_div_target_M_clamp_batchmean + kl_div_draft_M_clamp_batchmean).item()
+        js_div_batchmean = 0.5 * (kl_div_target_M_batchmean + kl_div_draft_M_batchmean).item()
+
+        # Compute loglikelihood of the full_contents under the main model
+        loglikelihood = self.get_loglikelihood(prefix, full_contents)[0]
+
+        # Compute diff logits for cd_logprobs_diff
+        diff_logits = (log_softmax_target - log_softmax_draft).log_softmax(dim=-1)
+        # Accumulate diff logits over continuation tokens
+        acc_diff_logits = torch.zeros(1, device=diff_logits.device)
+        for i in range(diff_logits.shape[1]):
+            tok_id = continue_ids[i].item()
+            if tok_id != self.llm.token_eos():
+                acc_diff_logits[0] += diff_logits[0, i, tok_id]
+        cd_logprobs_diff = acc_diff_logits.cpu().numpy()[0]
+
+        # Optionally compute critic score (if critic)
+        if self.critic and self.critic_llm is not None:
+            # If you have a build_autoj_input function or similar logic, uncomment and use here:
+            # critic_input = build_autoj_input(prefix, continue_contents)
+            # critic_output = self.critic_llm(
+            #     prompt=critic_input,
+            #     max_tokens=500,
+            #     temperature=self.temperature,
+            #     top_k=self.top_k,
+            #     top_p=self.top_p
+            # )
+            # Extract critic_score from critic_output if logic known
+            # For now, let's just set critic_score = 2 as in original code
+            critic_score = 2
+        else:
+            critic_score = 1
+
+        # Compute self_eval and critic_eval if needed
+        # self_eval:
+        self_eval = self.get_loglikelihood(self_eval_prompt, [self_eval_prompt + "good"])[0]
+
+        # critic_eval:
+        # We need to run get_loglikelihood with critic=True.
+        # Add a `critic` argument to get_loglikelihood to switch models.
+        critic_eval = self.get_loglikelihood(self_eval_prompt, [self_eval_prompt + "good"], critic=True)[0]
+
+        # Fill reward_dict similarly to original code
+        reward_dict = {
             "control": 1,
             "verifier": 0,
-            "sc_mcts": 0,
-            "loglikelihood": 0,
-            "self_eval": 0,
-            "cd_logprobs_diff": 0,
-            "kl_div_mean": 0,
-            "kl_div_batchmean": 0,
-            "js_div_clamp_batchmean": 0,
-            "js_div_clamp_mean": 0,
-            "js_div_batchmean": 0,
-            "js_div_mean": 0,
-            "intuition": 0
+            "sc_mcts": loglikelihood + self_eval + js_div_batchmean,
+            "loglikelihood": float(loglikelihood),
+            "self_eval": float(self_eval),
+            "cd_logprobs_diff": float(cd_logprobs_diff),
+            "kl_div_mean": float(kl_div_batchmean),  # originally kl_div_mean was also computed, but we only have batchmean here
+            "kl_div_batchmean": float(kl_div_batchmean),
+            "js_div_clamp_batchmean": float(js_div_clamp_batchmean),
+            "js_div_clamp_mean": float(js_div_clamp_batchmean),  # same value used here for simplicity
+            "js_div_batchmean": float(js_div_batchmean),
+            "js_div_mean": float(js_div_batchmean)  # same reasoning
         }
+
+        # The original code selects "intuition" as reward_model from reward_dict
+        reward_dict["intuition"] = reward_dict[reward_model]
+
+        print(f"\nnode_id: {node_id}")
+        print(f"action: {full_contents[0][len(prefix):]}")
+
+        for label, value in reward_dict.items():
+            print(f"{label}: {value}")
+
+        print(f"reward_model: {reward_model}")
+
+        return reward_dict
