@@ -40,7 +40,7 @@ class LlamaCppModel(LanguageModel):
         #     verbose=False
         # )
         self.llm = Llama.from_pretrained(
-            repo_id="Qwen/Qwen2-0.5B-Instruct-GGUF",
+            repo_id="Qwen/Qwen2.5-1.5B-Instruct-GGUF",
             filename="*q8_0.gguf",
             n_ctx=max_seq_len,
             logits_all=True,  # Allow access to all logits for get_next_token_logits and get_loglikelihood
@@ -124,7 +124,7 @@ class LlamaCppModel(LanguageModel):
                 temperature=temperature,
                 top_k=top_k_val,
                 top_p=top_p,
-                repeat_penalty=token_repetition_penalty,
+                # repeat_penalty=token_repetition_penalty,
                 stop=stop
             )
 

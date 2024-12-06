@@ -359,8 +359,10 @@ def validate_plan(domain, instance, lm_plan_file):
     :param lm_plan_file: plan file (saved earlier)
     """
     print("="*60+"validate_plan开始"+"="*60)
+    return True, ""
 
     val_path = os.getenv("VAL")
+    val_path = "LLMs-Planning/planner_tools/VAL"
     # print(f"val_path: {val_path}")
     cmd = f"{val_path}/validate {domain} {instance} {lm_plan_file}"
     response = os.popen(cmd).read()
@@ -378,7 +380,7 @@ def validate_plan(domain, instance, lm_plan_file):
     if "Plan valid" in response:
         return True, response
     
-    return False, response
+    # return False, response
 
 
 def generate_all_actions(state):

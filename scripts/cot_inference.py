@@ -51,7 +51,7 @@ def main(base_model,
 
     reasoner = CoTReasoner(base_model,
                            temperature=temperature,
-                           model_type="completion")
+                           model_type="chat")
 
     evaluator = BWEvaluator(
         config_file=config_file,
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         model_path=args.llama_path,  # Path to the Llama model file (e.g., 'path/to/llama.bin').
         max_batch_size=1,           # Maximum batch size for inference.
         max_new_tokens=200,         # Maximum number of new tokens to generate.
-        max_seq_len=16384,          # Maximum sequence length.
+        max_seq_len=32768,          # Maximum sequence length.
         device="cpu",              # Device to use ('cuda' for GPU, 'cpu' for CPU).
         temperature=1.0,            # Sampling temperature.
         top_k=40,                   # Top-k sampling parameter.
