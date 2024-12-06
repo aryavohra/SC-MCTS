@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(name='reasoners',
       version='0.0.0',
-      packages=['exllamav2', 'reasoners'],
+      packages=['reasoners'],
       entry_points={
           'console_scripts':
           ['reasoners-visualizer=reasoners.visualization:main'],

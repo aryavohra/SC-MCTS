@@ -5,7 +5,7 @@ from reasoners.blocksworld import BWEvaluator
 from reasoners.mcts import MCTS
 from reasoners.world_model import BlocksWorldModel
 from reasoners.search_config import BWConfig
-from reasoners.exllamav2_model import ExLlamaModelV2
+from reasoners.llamacpu_model import LlamaCppModel 
 import argparse
 import json
 import torch
@@ -114,15 +114,25 @@ if __name__ == "__main__":
     parser.add_argument("--simulate_strategy", type=str, default="max")
 
     args = parser.parse_args()
-    device = torch.device('cuda')
+    # device = torch.device('cuda')
 
-    llama_model = ExLlamaModelV2(model_path=args.llama_path,
-                                    draft_model_path=args.draft_model_path,
-                                    lora_dir=None,
-                                    device="cuda",
-                                    max_batch_size=1,
-                                    max_new_tokens=200,
-                                    max_seq_len=16384)
+    llama_model = LlamaCppModel(
+        model_path=args.llama_path,  # Path to the Llama model file (e.g., 'path/to/llama.bin').
+        max_batch_size=1,           # Maximum batch size for inference.
+        max_new_tokens=200,         # Maximum number of new tokens to generate.
+        max_seq_len=16384,          # Maximum sequence length.
+        device="cpu",              # Device to use ('cuda' for GPU, 'cpu' for CPU).
+        temperature=1.0,            # Sampling temperature.
+        top_k=40,                   # Top-k sampling parameter.
+        top_p=0.9,                  # Top-p sampling parameter.
+        repetition_penalty=1.0      # Repetition penalty to avoid repeating tokens.
+    )
+    # llama_model = ExLlamaModelV2(model_path=args.llama_path, draft_model_path=args.draft_model_path,
+    #                                 lora_dir=None,
+    #                                 device="cuda",
+    #                                 max_batch_size=1,
+    #                                 max_new_tokens=200,
+    #                                 max_seq_len=16384)
 
     RAP_bw(
         llama_model,
